@@ -97,10 +97,13 @@ app.post('/api/generar-calavera', async (req, res) => {
       const result = await model.generateContent(prompt);
       const textoCalavera = result.response.text();
 
+      // ---- Seleccionar ID de fondo aleatorio ----
+      const imagenFondoId = Math.random() < 0.5 ? 1 : 2;
+
       // Guardar en MySQL (tabla 'calaveras')
       const [dbResult] = await connection.execute(
-        'INSERT INTO calaveras (nombre, gustos, profesion, texto_generado, tono, puesto, empresa) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [nombre, gustos, profesion, textoCalavera, tono, puesto, empresa]
+        'INSERT INTO calaveras (nombre, gustos, profesion, texto_generado, tono, puesto, empresa, imagen_fondo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [nombre, gustos, profesion, textoCalavera, tono, puesto, empresa, imagenFondoId]
       );
 
       // ---- NUEVO: Actualizar o insertar contador en tabla 'usuarios' ----
@@ -120,6 +123,7 @@ app.post('/api/generar-calavera', async (req, res) => {
       res.status(201).json({
         id: dbResult.insertId,
         calavera: textoCalavera,
+        imagenFondoId: imagenFondoId,
       });
     } catch (dbError) {
       // Si algo falla con la BD, deshacer y liberar conexión
@@ -141,7 +145,7 @@ app.get('/api/calaveras', async (req, res) => {
   try {
     // Obtenemos las 10 más recientes
     const [rows] = await pool.execute(
-      'SELECT nombre, texto_generado, fecha_creacion FROM calaveras ORDER BY fecha_creacion DESC LIMIT 10'
+      'SELECT id, nombre, texto_generado, fecha_creacion, imagen_fondo_id FROM calaveras ORDER BY fecha_creacion DESC LIMIT 10'
     );
     res.status(200).json(rows);
   } catch (error) {

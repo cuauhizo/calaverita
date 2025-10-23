@@ -10,6 +10,7 @@ const gustos = ref('');
 const profesion = ref('');
 
 // --- NUEVOS Refs ---
+const imagenFondoResultadoActual = ref(1);
 const email = ref('');
 const tono = ref('humorístico'); // Valor por defecto
 const puesto = ref('');
@@ -25,6 +26,7 @@ const error = ref(null);
 
 // 3. URL del Backend
 const API_URL = 'http://localhost:3000/api/generar-calavera';
+const GALERIA_URL = 'http://localhost:3000/api/calaveras';
 
 // 4. Función que se llama al enviar el formulario
 const handleSubmit = async () => {
@@ -47,8 +49,7 @@ const handleSubmit = async () => {
 
     // 6. Actualizar el ref con la respuesta
     calaveraGenerada.value = response.data.calavera;
-    // Seleccionar aleatoriamente una imagen de fondo para el resultado
-    imagenFondoSeleccionada.value = Math.random() < 0.5 ? 1 : 2;
+    imagenFondoResultadoActual.value = response.data.imagenFondoId;
     cargarGaleria();
 
   } catch (err) {
@@ -69,7 +70,7 @@ const handleSubmit = async () => {
 // 3. Función para cargar la galería
 const cargarGaleria = async () => {
   try {
-    const response = await axios.get('http://localhost:3000/api/calaveras');
+    const response = await axios.get(GALERIA_URL);
     galeria.value = response.data;
   } catch (err) {
     console.error("Error cargando la galería", err);
@@ -146,26 +147,15 @@ onMounted(() => {
         {{ error }}
       </div>
 
-      <!-- <div v-if="calaveraGenerada"
-        class="mt-6 p-28 rounded-lg shadow-lg bg-cover bg-center relative min-h-[300px] flex items-center justify-center"
-        :style="{ backgroundImage: `url('/fondo${imagenFondoSeleccionada}.png')` }">
-        <div class="absolute inset-0 bg-black bg-opacity-30 rounded-lg"></div>
-        <div class="relative z-10 text-center my-40">
-          <h2 class="text-2xl font-semibold mb-4 text-orange-300">¡Aquí está tu calavera!</h2>
-          <p class="text-gray-100 whitespace-pre-line text-lg md:text-xl">{{ calaveraGenerada }}</p>
-        </div>
-      </div> -->
-
       <div v-if="calaveraGenerada" class="mt-6">
         <div class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
-          <img :src="`/fondo${imagenFondoSeleccionada}.png`" alt="Fondo Calaverita"
+          <img :src="`/fondo${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
             class="absolute inset-0 w-full h-full object-cover">
-          <div class="absolute inset-0 bg-black bg-opacity-50"></div>
+          <div class="absolute inset-0 bg-black bg-opacity-20"></div>
           <div
-            class="absolute inset-0 p-6 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-32">
+            class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28">
             <div>
-              <h2 class="text-2xl md:text-3xl font-semibold mb-4 text-orange-300">¡Aquí está tu calavera!</h2>
-              <p class="text-gray-100 whitespace-pre-line text-base md:text-lg lg:text-xl">
+              <p class="text-gray-100 whitespace-pre-line text-sm md:text-base">
                 {{ calaveraGenerada }}
               </p>
             </div>
@@ -173,26 +163,20 @@ onMounted(() => {
         </div>
       </div>
       <div v-if="galeria.length > 0" class="mt-10">
-        <h2 divss="text-2xl font-semibold mb-4 text-orange-400">Últimas Calaveras</h2>
+        <h2 class="text-2xl font-semibold mb-4 text-orange-400">Últimas Calaveras</h2>
         <div class="space-y-4">
-          <div v-for="calavera in galeria" :key="calavera.id">
-            <!-- <div class="mt-6 p-28 rounded-lg shadow-lg bg-cover bg-center relative min-h-[300px] flex items-center
-            justify-center" :style="{ backgroundImage: `url('/fondo${imagenFondoSeleccionada}.png')` }">
-              <div class="absolute inset-0 bg-black bg-opacity-30 rounded-lg"></div>
-              <div class="relative z-10 text-center my-40">
+          <div v-for="calavera in galeria" :key="calavera.id"
+            class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
+            <img :src="`/fondo${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
+              class="absolute inset-0 w-full h-full object-cover">
+            <div class="absolute inset-0 bg-black bg-opacity-20"></div>
+            <div
+              class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28">
+              <div>
                 <h3 class="font-bold text-lg text-white">Para: {{ calavera.nombre }}</h3>
-                <p class="text-gray-300 whitespace-pre-line">{{ calavera.texto_generado }}</p>
-              </div>
-            </div> -->
-            <div class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
-              <img :src="`/fondo2.png`" alt="Fondo Calaverita" class="absolute inset-0 w-full h-full object-cover">
-              <div class="absolute inset-0 bg-black bg-opacity-30"></div>
-              <div
-                class="absolute inset-0 p-6 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-28">
-                <div>
-                  <h3 class="font-bold text-lg text-white">Para: {{ calavera.nombre }}</h3>
-                  <p class="text-sm text-gray-300 whitespace-pre-line">{{ calavera.texto_generado }}</p>
-                </div>
+                <p class="text-gray-100 whitespace-pre-line text-sm">
+                  {{ calavera.texto_generado }}
+                </p>
               </div>
             </div>
           </div>
