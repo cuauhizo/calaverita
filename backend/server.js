@@ -22,8 +22,6 @@ const pool = mysql.createPool({
 
 // 2. Configurar Cliente de Gemini
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
-// const model = genAI.getGenerativeModel({ model: 'gemini-1.5-flash' });
-// const model = genAI.getGenerativeModel({ model: 'gemini-pro' });
 const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
 // --- FUNCIÓN HELPER PARA VALIDAR EMAIL (Simple) ---
@@ -90,7 +88,7 @@ app.post('/api/generar-calavera', async (req, res) => {
 
           El tono debe ser **${tono}**.
 
-          Asegúrate de que los versos rimen y menciona de forma graciosa cómo la "Calaca", "Huesuda" o la "Parca" se lo lleva, acorde al tono solicitado.
+          Asegúrate de que los versos rimen y menciona de forma graciosa cómo la "Calaca", "Huesuda" o la "Parca" se lo lleva, acorde al tono solicitado. omite cualquier saludo inicial o despedida; solo entrega la calavera directamente.
         `;
 
       // Llamar a Gemini (sin cambios)
@@ -102,11 +100,11 @@ app.post('/api/generar-calavera', async (req, res) => {
 
       // Guardar en MySQL (tabla 'calaveras')
       const [dbResult] = await connection.execute(
-        'INSERT INTO calaveras (nombre, gustos, profesion, texto_generado, tono, puesto, empresa, imagen_fondo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [nombre, gustos, profesion, textoCalavera, tono, puesto, empresa, imagenFondoId]
+        'INSERT INTO calaveras (nombre, gustos, profesion, texto_generado, email, tono, puesto, empresa, imagen_fondo_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [nombre, gustos, profesion, textoCalavera, email, tono, puesto, empresa, imagenFondoId]
       );
 
-      // ---- NUEVO: Actualizar o insertar contador en tabla 'usuarios' ----
+      // ---- Actualizar o insertar contador en tabla 'usuarios' ----
       if (usuarioNuevo) {
         await connection.execute('INSERT INTO usuarios (email, generaciones_count) VALUES (?, 1)', [email]);
       } else {
@@ -143,14 +141,27 @@ app.post('/api/generar-calavera', async (req, res) => {
 // 4. Endpoint para obtener las calaveras guardadas
 app.get('/api/calaveras', async (req, res) => {
   try {
+    // ---- Obtener el email del query parameter ----
+    const userEmail = req.query.email;
+
+    // ---- Validación ----
+    if (!userEmail || !isValidEmail(userEmail)) {
+      // Reutilizamos la función helper
+      return res.status(400).json({ error: 'Se requiere un email válido para ver la galería personal.' });
+    }
+
     // Obtenemos las 10 más recientes
-    const [rows] = await pool.execute(
-      'SELECT id, nombre, texto_generado, fecha_creacion, imagen_fondo_id FROM calaveras ORDER BY fecha_creacion DESC LIMIT 10'
-    );
+    const query = `SELECT id, nombre, texto_generado, fecha_creacion, imagen_fondo_id 
+                   FROM calaveras 
+                   WHERE email = ? 
+                   ORDER BY fecha_creacion DESC`;
+
+    const [rows] = await pool.execute(query, [userEmail]);
+
     res.status(200).json(rows);
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: 'Error al obtener las calaveras' });
+    console.error('Error en GET /api/calaveras:', error);
+    res.status(500).json({ error: 'Error al obtener las calaveras personales.' });
   }
 });
 

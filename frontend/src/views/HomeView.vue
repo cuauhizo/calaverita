@@ -1,8 +1,9 @@
 <script setup>
 // Importamos 'ref' de Vue para la reactividad
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, watch } from 'vue';
 // Importamos Axios para las peticiones HTTP
 import axios from 'axios';
+import html2canvas from 'html2canvas';
 
 // 1. Refs para los datos del formulario
 const nombre = ref('');
@@ -17,12 +18,25 @@ const puesto = ref('');
 const empresa = ref('');
 const galeria = ref([]);
 const imagenFondoSeleccionada = ref(1); // Para alternar fondos
-
+const galeriaItemRefs = ref({}); // Usaremos un objeto para guardar las refs por ID
+const setGaleriaItemRef = (el, itemId) => {
+  if (el) {
+    // Si el elemento existe (se monta o actualiza), lo guardamos/actualizamos
+    galeriaItemRefs.value[itemId] = el;
+  } else {
+    // Si 'el' es null, significa que el elemento se está desmontando
+    // Lo eliminamos de nuestro objeto de refs
+    if (galeriaItemRefs.value[itemId]) {
+      delete galeriaItemRefs.value[itemId];
+    }
+  }
+};
 
 // 2. Refs para manejar el estado de la UI
 const calaveraGenerada = ref('');
 const estaCargando = ref(false);
 const error = ref(null);
+const resultadoActualDivRef = ref(null);
 
 // 3. URL del Backend
 const API_URL = 'http://localhost:3000/api/generar-calavera';
@@ -36,6 +50,13 @@ const handleSubmit = async () => {
   error.value = null;
 
   try {
+
+    if (!isValidEmail(email.value)) {
+      error.value = 'Por favor, ingresa un correo electrónico válido.';
+      estaCargando.value = false;
+      return; // Detener si el email no es válido
+    }
+
     // 5. Llamada de Axios al backend
     const response = await axios.post(API_URL, {
       nombre: nombre.value,
@@ -50,7 +71,9 @@ const handleSubmit = async () => {
     // 6. Actualizar el ref con la respuesta
     calaveraGenerada.value = response.data.calavera;
     imagenFondoResultadoActual.value = response.data.imagenFondoId;
-    cargarGaleria();
+    // ---- Cargar galería personal DESPUÉS de generar ----
+    // Usamos el email que ya está en el ref
+    cargarGaleria(email.value);
 
   } catch (err) {
     // 7. Manejo de error MEJORADO
@@ -68,19 +91,77 @@ const handleSubmit = async () => {
 };
 
 // 3. Función para cargar la galería
-const cargarGaleria = async () => {
+const cargarGaleria = async (correoUsuario) => {
+  if (!correoUsuario || !isValidEmail(correoUsuario)) { // 2. No cargar si no hay email válido
+    galeria.value = []; // Limpiar galería si el email no es válido
+    return;
+  }
   try {
-    const response = await axios.get(GALERIA_URL);
+    // ---- MODIFICADO: Añadir el email como query parameter ----
+    const response = await axios.get(GALERIA_URL, { params: { email: correoUsuario } });
     galeria.value = response.data;
   } catch (err) {
-    console.error("Error cargando la galería", err);
+    console.error("Error cargando la galería personal", err);
+    // Podrías mostrar un mensaje si falla la carga (ej. email inválido según backend)
+    if (err.response && err.response.status === 400) {
+      // Quizás mostrar un pequeño mensaje indicando que el email no es válido para la galería
+    }
+    galeria.value = []; // Limpiar en caso de error
+  }
+};
+
+// Función para descargar la imagen del resultado ACTUAL
+const descargarImagenActual = async () => {
+  if (!resultadoActualDivRef.value) return;
+  await generarYDescargarCanvas(resultadoActualDivRef.value, `calaverita_${nombre.value || 'generada'}.png`);
+};
+
+// --- NUEVO: Función para descargar imagen de la GALERÍA ---
+const descargarImagenGaleria = async (calavera) => {
+  const elemento = galeriaItemRefs.value[calavera.id]; // Busca el elemento por su ID
+  if (!elemento) {
+    console.error(`No se encontró el elemento para el ID ${calavera.id}`);
+    return;
+  }
+  await generarYDescargarCanvas(elemento, `calaverita_${calavera.nombre}_${calavera.id}.png`);
+};
+
+// --- NUEVO: Función reutilizable para generar y descargar ---
+const generarYDescargarCanvas = async (elementoDOM, nombreArchivo) => {
+  try {
+    const canvas = await html2canvas(elementoDOM, { useCORS: true, logging: false });
+    const imageURL = canvas.toDataURL('image/png');
+    const link = document.createElement('a');
+    link.href = imageURL;
+    link.download = nombreArchivo;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  } catch (error) {
+    console.error('Error al generar la imagen:', error);
+    // Aquí podrías mostrar un error al usuario
   }
 };
 
 // 4. Llama la función cuando el componente esté listo
-onMounted(() => {
-  cargarGaleria();
+// onMounted(() => {
+//   cargarGaleria();
+// });
+
+// ---- Observar cambios en el email para cargar la galería personal ----
+watch(email, (newEmail) => {
+  if (newEmail && isValidEmail(newEmail)) {
+    cargarGaleria(newEmail);
+  } else {
+    galeria.value = [];
+  }
 });
+
+// --- Helper de validación de email (simple) en el frontend ---
+function isValidEmail(email) {
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return emailRegex.test(email);
+}
 </script>
 
 <template>
@@ -91,7 +172,7 @@ onMounted(() => {
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <div>
           <label for="email" class="block text-sm font-medium text-gray-300">Tu Correo Electrónico:</label>
-          <input v-model="email" type="email" id="email" placeholder="Para límite de 2 por persona"
+          <input v-model="email" type="email" id="email" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white" required>
         </div>
 
@@ -115,13 +196,14 @@ onMounted(() => {
 
         <div>
           <label for="profesion" class="block text-sm font-medium text-gray-300">Profesión General:</label>
-          <input v-model="profesion" type="text" id="profesion" placeholder="Ej: Doctor, Músico"
+          <input v-model="profesion" type="text" id="profesion" placeholder="Ej: Doctor, Músico, Programador"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
         <div>
           <label for="gustos" class="block text-sm font-medium text-gray-300">Gustos y Hobbies:</label>
-          <textarea v-model="gustos" id="gustos" rows="2" placeholder="Ej: el café, las películas de terror"
+          <textarea v-model="gustos" id="gustos" rows="2"
+            placeholder="Ej: el café, las películas de terror, cantar, bailar"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white"></textarea>
         </div>
 
@@ -148,12 +230,13 @@ onMounted(() => {
       </div>
 
       <div v-if="calaveraGenerada" class="mt-6">
-        <div class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
+        <div ref="resultadoActualDivRef"
+          class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
           <img :src="`/fondo${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
             class="absolute inset-0 w-full h-full object-cover">
-          <div class="absolute inset-0 bg-black bg-opacity-20"></div>
+          <div class="absolute inset-0"></div>
           <div
-            class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28">
+            class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
             <div>
               <p class="text-gray-100 whitespace-pre-line text-sm md:text-base">
                 {{ calaveraGenerada }}
@@ -161,17 +244,21 @@ onMounted(() => {
             </div>
           </div>
         </div>
+        <button @click="descargarImagenActual"
+          class="mt-4 w-full max-w-xl mx-auto block py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+          Descargar Imagen
+        </button>
       </div>
-      <div v-if="galeria.length > 0" class="mt-10">
-        <h2 class="text-2xl font-semibold mb-4 text-orange-400">Últimas Calaveras</h2>
-        <div class="space-y-4">
-          <div v-for="calavera in galeria" :key="calavera.id"
+      <div v-if="email && isValidEmail(email) && galeria.length > 0" class="mt-10">
+        <h2 class="text-2xl font-semibold mb-4 text-orange-400">Tus Calaveritas Generadas</h2>
+        <div v-for="calavera in galeria" :key="calavera.id" class="mb-8">
+          <div :ref="(el) => setGaleriaItemRef(el, calavera.id)"
             class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
             <img :src="`/fondo${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
               class="absolute inset-0 w-full h-full object-cover">
-            <div class="absolute inset-0 bg-black bg-opacity-20"></div>
+            <div class="absolute inset-0"></div>
             <div
-              class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28">
+              class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
               <div>
                 <h3 class="font-bold text-lg text-white">Para: {{ calavera.nombre }}</h3>
                 <p class="text-gray-100 whitespace-pre-line text-sm">
@@ -180,7 +267,15 @@ onMounted(() => {
               </div>
             </div>
           </div>
+          <button @click="descargarImagenGaleria(calavera)"
+            class="mt-4 w-full max-w-xl mx-auto block py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+            Descargar esta Calaverita
+          </button>
         </div>
+      </div>
+      <div v-else-if="email && isValidEmail(email) && !estaCargando && calaveraGenerada"
+        class="mt-10 text-center text-gray-400">
+        Aún no tienes más calaveritas guardadas para este correo.
       </div>
     </div>
   </div>
