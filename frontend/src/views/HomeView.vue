@@ -15,9 +15,8 @@ const imagenFondoResultadoActual = ref(1);
 const email = ref('');
 const tono = ref('humorístico'); // Valor por defecto
 const puesto = ref('');
-const empresa = ref('');
+const empresa = ref('Bayer');
 const galeria = ref([]);
-const imagenFondoSeleccionada = ref(1); // Para alternar fondos
 const galeriaItemRefs = ref({}); // Usaremos un objeto para guardar las refs por ID
 const setGaleriaItemRef = (el, itemId) => {
   if (el) {
@@ -39,8 +38,14 @@ const error = ref(null);
 const resultadoActualDivRef = ref(null);
 
 // 3. URL del Backend
-const API_URL = 'http://localhost:3000/api/generar-calavera';
-const GALERIA_URL = 'http://localhost:3000/api/calaveras';
+// const API_URL = 'http://localhost:3000/api/generar-calavera';
+// const GALERIA_URL = 'http://localhost:3000/api/calaveras';
+
+const API_URL = `${import.meta.env.API_URL}/generar-calavera`;
+const GALERIA_URL = `${import.meta.env.GALERIA_URL}/calaveras`;
+
+
+
 
 // 4. Función que se llama al enviar el formulario
 const handleSubmit = async () => {
@@ -143,11 +148,6 @@ const generarYDescargarCanvas = async (elementoDOM, nombreArchivo) => {
   }
 };
 
-// 4. Llama la función cuando el componente esté listo
-// onMounted(() => {
-//   cargarGaleria();
-// });
-
 // ---- Observar cambios en el email para cargar la galería personal ----
 watch(email, (newEmail) => {
   if (newEmail && isValidEmail(newEmail)) {
@@ -183,20 +183,14 @@ function isValidEmail(email) {
         </div>
 
         <div>
-          <label for="puesto" class="block text-sm font-medium text-gray-300">Puesto de Trabajo:</label>
-          <input v-model="puesto" type="text" id="puesto" placeholder=""
-            class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
-        </div>
-
-        <div>
-          <label for="empresa" class="block text-sm font-medium text-gray-300">Empresa:</label>
-          <input v-model="empresa" type="text" id="empresa" placeholder=""
-            class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
-        </div>
-
-        <div>
           <label for="profesion" class="block text-sm font-medium text-gray-300">Profesión General:</label>
           <input v-model="profesion" type="text" id="profesion" placeholder="Ej: Doctor, Músico, Programador"
+            class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
+        </div>
+
+        <div>
+          <label for="puesto" class="block text-sm font-medium text-gray-300">Puesto de trabajo en bayer:</label>
+          <input v-model="puesto" type="text" id="puesto" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
@@ -260,7 +254,6 @@ function isValidEmail(email) {
             <div
               class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
               <div>
-                <h3 class="font-bold text-lg text-white">Para: {{ calavera.nombre }}</h3>
                 <p class="text-gray-100 whitespace-pre-line text-sm">
                   {{ calavera.texto_generado }}
                 </p>

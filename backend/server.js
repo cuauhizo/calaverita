@@ -6,7 +6,36 @@ const mysql = require('mysql2/promise'); // Usamos la versión con Promesas
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 const app = express();
-app.use(cors()); // Habilita CORS para que Vue (desde otro puerto) pueda conectarse
+
+// 1. Define los orígenes permitidos (la "lista de invitados")
+const whitelist = [
+  process.env.FRONTEND_URL,
+  'http://localhost:5173',
+  'https://tolkogroup.com',
+  'https://www.tolkogroup.com',
+  'https://calaverita-bayer.tolkogroup.com',
+];
+const corsOptions = {
+  origin: function (origin, callback) {
+    // Permitir peticiones sin origen (como las de Postman o de servidor a servidor)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // 2. Comprueba si el origen de la petición está en nuestra lista
+    if (whitelist.includes(origin)) {
+      // Si está permitido, permite la petición
+      callback(null, true);
+    } else {
+      // Si no, recházala
+      console.log(`🛑 Bloqueado por CORS: ${origin}`);
+      callback(new Error('Error de CORS: Origen no permitido'));
+    }
+  },
+};
+
+app.use(cors(corsOptions));
+
 app.use(express.json()); // Habilita el parseo de JSON
 
 // 1. Configurar Conexión a MySQL
@@ -96,7 +125,7 @@ app.post('/api/generar-calavera', async (req, res) => {
       const textoCalavera = result.response.text();
 
       // ---- Seleccionar ID de fondo aleatorio ----
-      const imagenFondoId = Math.random() < 0.5 ? 1 : 2;
+      const imagenFondoId = Math.floor(Math.random() * 3) + 1;
 
       // Guardar en MySQL (tabla 'calaveras')
       const [dbResult] = await connection.execute(
