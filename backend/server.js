@@ -99,7 +99,7 @@ app.post('/api/generar-calavera', async (req, res) => {
       if (count >= 2) {
         await connection.rollback(); // Deshacer transacción
         connection.release();
-        return res.status(429).json({ error: 'Has alcanzado el límite de 2 calaveritas por correo.' });
+        return res.status(429).json({ error: 'Has alcanzado el límite permitido de 2 calaveritas.' });
       }
 
       // ---- NUEVO: Construir el prompt mejorado ----

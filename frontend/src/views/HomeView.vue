@@ -1,6 +1,6 @@
 <script setup>
 // Importamos 'ref' de Vue para la reactividad
-import { ref, onMounted, watch } from 'vue';
+import { ref, onMounted, watch, computed } from 'vue';
 // Importamos Axios para las peticiones HTTP
 import axios from 'axios';
 import html2canvas from 'html2canvas';
@@ -33,16 +33,15 @@ const setGaleriaItemRef = (el, itemId) => {
 
 // 2. Refs para manejar el estado de la UI
 const calaveraGenerada = ref('');
+const lastGeneratedId = ref(null);
+const showCurrentResult = ref(false);
 const estaCargando = ref(false);
 const error = ref(null);
 const resultadoActualDivRef = ref(null);
 
 // 3. URL del Backend
-// const API_URL = 'http://localhost:3000/api/generar-calavera';
-// const GALERIA_URL = 'http://localhost:3000/api/calaveras';
-
-const API_URL = `${import.meta.env.API_URL}/generar-calavera`;
-const GALERIA_URL = `${import.meta.env.GALERIA_URL}/calaveras`;
+const API_URL = `${import.meta.env.VITE_API_URL}/generar-calavera`;
+const GALERIA_URL = `${import.meta.env.VITE_GALERIA_URL}/calaveras`;
 
 
 
@@ -53,6 +52,8 @@ const handleSubmit = async () => {
   estaCargando.value = true;
   calaveraGenerada.value = '';
   error.value = null;
+  showCurrentResult.value = false;
+  lastGeneratedId.value = null;
 
   try {
 
@@ -76,6 +77,8 @@ const handleSubmit = async () => {
     // 6. Actualizar el ref con la respuesta
     calaveraGenerada.value = response.data.calavera;
     imagenFondoResultadoActual.value = response.data.imagenFondoId;
+    lastGeneratedId.value = response.data.id;
+    showCurrentResult.value = true;
     // ---- Cargar galería personal DESPUÉS de generar ----
     // Usamos el email que ya está en el ref
     cargarGaleria(email.value);
@@ -148,8 +151,19 @@ const generarYDescargarCanvas = async (elementoDOM, nombreArchivo) => {
   }
 };
 
+const galeriaFiltrada = computed(() => {
+  // Si no hay un ID recién generado, muestra toda la galería
+  if (!lastGeneratedId.value) {
+    return galeria.value;
+  }
+  // Si hay un ID recién generado, filtra ese item
+  return galeria.value.filter(item => item.id !== lastGeneratedId.value);
+});
+
 // ---- Observar cambios en el email para cargar la galería personal ----
 watch(email, (newEmail) => {
+  showCurrentResult.value = false;
+  lastGeneratedId.value = null;
   if (newEmail && isValidEmail(newEmail)) {
     cargarGaleria(newEmail);
   } else {
@@ -167,42 +181,44 @@ function isValidEmail(email) {
 <template>
   <div class="min-h-screen bg-gray-900 text-white p-4 md:p-10">
     <div class="max-w-2xl mx-auto">
-      <h1 class="text-4xl font-bold text-center mb-8 text-orange-400">Generador de Calaveritas 💀</h1>
+      <h1 class="text-4xl font-bold text-center mb-8 text-orange-400">Generador de Calaveritas Literarias 💀</h1>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-300">Tu Correo Electrónico:</label>
+          <label for="email" class="block text-sm font-medium text-gray-300">Escribe tu correo electrónico:</label>
           <input v-model="email" type="email" id="email" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white" required>
         </div>
 
         <div>
-          <label for="nombre" class="block text-sm font-medium text-gray-300">Nombre de la Persona:</label>
+          <label for="nombre" class="block text-sm font-medium text-gray-300">¿Cómo te llamas?</label>
           <input v-model="nombre" type="text" id="nombre"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white" required>
         </div>
 
         <div>
-          <label for="profesion" class="block text-sm font-medium text-gray-300">Profesión General:</label>
-          <input v-model="profesion" type="text" id="profesion" placeholder="Ej: Doctor, Músico, Programador"
+          <label for="profesion" class="block text-sm font-medium text-gray-300">¿Cuál es tu profesión?</label>
+          <input v-model="profesion" type="text" id="profesion" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
         <div>
-          <label for="puesto" class="block text-sm font-medium text-gray-300">Puesto de trabajo en bayer:</label>
+          <label for="puesto" class="block text-sm font-medium text-gray-300">¿Qué puesto de trabajo tienes
+            Bayer?</label>
           <input v-model="puesto" type="text" id="puesto" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
         <div>
-          <label for="gustos" class="block text-sm font-medium text-gray-300">Gustos y Hobbies:</label>
-          <textarea v-model="gustos" id="gustos" rows="2"
-            placeholder="Ej: el café, las películas de terror, cantar, bailar"
+          <label for="gustos" class="block text-sm font-medium text-gray-300">¿Qué actividades disfrutas
+            realizar?</label>
+          <textarea v-model="gustos" id="gustos" rows="2" placeholder=""
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white"></textarea>
         </div>
 
         <div>
-          <label for="tono" class="block text-sm font-medium text-gray-300">Tono de la Calaverita:</label>
+          <label for="tono" class="block text-sm font-medium text-gray-300">¿Qué vibra quieres que tenga tu calaverita?
+          </label>
           <select v-model="tono" id="tono"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
             <option value="humorístico">Humorístico</option>
@@ -212,10 +228,18 @@ function isValidEmail(email) {
             <option value="respetuoso">Respetuoso</option>
           </select>
         </div>
-
         <button type="submit" :disabled="estaCargando"
-          class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50">
-          {{ estaCargando ? 'Generando...' : '¡Generar Calaverita!' }}
+          class="w-full py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+          style="min-height: 38px;">
+          <svg v-if="estaCargando" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg"
+            fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor"
+              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+            </path>
+          </svg>
+          <span v-if="!estaCargando">¡Generar Calaverita!</span>
+          <span v-if="estaCargando">Generando...</span>
         </button>
       </form>
 
@@ -223,7 +247,7 @@ function isValidEmail(email) {
         {{ error }}
       </div>
 
-      <div v-if="calaveraGenerada" class="mt-6">
+      <div v-if="calaveraGenerada && showCurrentResult" class="mt-6">
         <div ref="resultadoActualDivRef"
           class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
           <img :src="`/fondo${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
@@ -243,32 +267,30 @@ function isValidEmail(email) {
           Descargar Imagen
         </button>
       </div>
-      <div v-if="email && isValidEmail(email) && galeria.length > 0" class="mt-10">
+      <div v-if="email && isValidEmail(email) && galeriaFiltrada.length > 0" class="mt-10">
         <h2 class="text-2xl font-semibold mb-4 text-orange-400">Tus Calaveritas Generadas</h2>
-        <div v-for="calavera in galeria" :key="calavera.id" class="mb-8">
-          <div :ref="(el) => setGaleriaItemRef(el, calavera.id)"
-            class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
-            <img :src="`/fondo${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
-              class="absolute inset-0 w-full h-full object-cover">
-            <div class="absolute inset-0"></div>
-            <div
-              class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
-              <div>
-                <p class="text-gray-100 whitespace-pre-line text-sm">
-                  {{ calavera.texto_generado }}
-                </p>
+        <template v-for="calavera in galeriaFiltrada" :key="calavera.id">
+          <div class="mb-8">
+            <div :ref="(el) => setGaleriaItemRef(el, calavera.id)"
+              class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
+              <img :src="`/fondo${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
+                class="absolute inset-0 w-full h-full object-cover">
+              <div class="absolute inset-0"></div>
+              <div
+                class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
+                <div>
+                  <p class="text-gray-100 whitespace-pre-line text-sm">
+                    {{ calavera.texto_generado }}
+                  </p>
+                </div>
               </div>
             </div>
+            <button @click="descargarImagenGaleria(calavera)"
+              class="mt-4 w-full max-w-xl mx-auto block py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
+              Descargar esta Calaverita
+            </button>
           </div>
-          <button @click="descargarImagenGaleria(calavera)"
-            class="mt-4 w-full max-w-xl mx-auto block py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-            Descargar esta Calaverita
-          </button>
-        </div>
-      </div>
-      <div v-else-if="email && isValidEmail(email) && !estaCargando && calaveraGenerada"
-        class="mt-10 text-center text-gray-400">
-        Aún no tienes más calaveritas guardadas para este correo.
+        </template>
       </div>
     </div>
   </div>
