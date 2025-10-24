@@ -248,6 +248,9 @@ function isValidEmail(email) {
       </div>
 
       <div v-if="calaveraGenerada && showCurrentResult" class="mt-6">
+        <div class="block sm:hidden my-6 p-4 bg-green-100 text-green-900  rounded-md" role="alert">
+          <p class="text-sm text-center">Gira tu dispositivo para una mejor descarga de tu imagen</p>
+        </div>
         <div ref="resultadoActualDivRef"
           class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
           <img :src="`/fondo${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
@@ -256,7 +259,7 @@ function isValidEmail(email) {
           <div
             class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
             <div>
-              <p class="text-gray-100 whitespace-pre-line text-sm md:text-base">
+              <p class="text-gray-100 whitespace-pre-line text-sm sm:text-base">
                 {{ calaveraGenerada }}
               </p>
             </div>
@@ -268,6 +271,9 @@ function isValidEmail(email) {
         </button>
       </div>
       <div v-if="email && isValidEmail(email) && galeriaFiltrada.length > 0" class="mt-10">
+        <div class="block sm:hidden my-6 p-4 bg-green-100 text-green-900  rounded-md" role="alert">
+          <p class="text-sm text-center">Gira tu dispositivo para una mejor descarga de tu imagen</p>
+        </div>
         <h2 class="text-2xl font-semibold mb-4 text-orange-400">Tus Calaveritas Generadas</h2>
         <template v-for="calavera in galeriaFiltrada" :key="calavera.id">
           <div class="mb-8">
@@ -277,9 +283,9 @@ function isValidEmail(email) {
                 class="absolute inset-0 w-full h-full object-cover">
               <div class="absolute inset-0"></div>
               <div
-                class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-16 sm:mt-28 md:mt-20">
+                class="absolute inset-0 p-8 sm:p-14 md:p-10 lg:p-16 z-10 overflow-y-auto text-center flex flex-col justify-center mt-48 mb-32 sm:mt-28 sm:mb-0  md:mt-20 md:mb-0">
                 <div>
-                  <p class="text-gray-100 whitespace-pre-line text-sm">
+                  <p class="text-gray-100 whitespace-pre-line text-sm sm:text-base">
                     {{ calavera.texto_generado }}
                   </p>
                 </div>
