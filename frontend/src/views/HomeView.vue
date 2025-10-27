@@ -4,6 +4,7 @@ import { ref, onMounted, watch, computed } from 'vue';
 // Importamos Axios para las peticiones HTTP
 import axios from 'axios';
 import html2canvas from 'html2canvas';
+import { useGtag } from 'vue-gtag-next'
 
 // 1. Refs para los datos del formulario
 const nombre = ref('');
@@ -38,6 +39,7 @@ const showCurrentResult = ref(false);
 const estaCargando = ref(false);
 const error = ref(null);
 const resultadoActualDivRef = ref(null);
+const { event } = useGtag()
 
 // 3. URL del Backend
 const API_URL = `${import.meta.env.VITE_API_URL}/generar-calavera`;
@@ -79,6 +81,16 @@ const handleSubmit = async () => {
     imagenFondoResultadoActual.value = response.data.imagenFondoId;
     lastGeneratedId.value = response.data.id;
     showCurrentResult.value = true;
+
+    // --- Enviar evento a GA4 ---
+    event('generate_calaverita', {
+      'event_category': 'engagement',
+      'event_label': `Tono: ${tono.value}`, // Puedes añadir más detalles
+      'value': 1 // Opcional: un valor numérico
+    })
+    // --- FIN Evento ---
+
+
     // ---- Cargar galería personal DESPUÉS de generar ----
     // Usamos el email que ya está en el ref
     cargarGaleria(email.value);
@@ -145,6 +157,14 @@ const generarYDescargarCanvas = async (elementoDOM, nombreArchivo) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+
+    // --- Enviar evento a GA4 ---
+    event('download_image', {
+      'event_category': 'engagement',
+      'event_label': nombreArchivo, // El nombre del archivo puede ser útil
+    });
+    // --- FIN Evento ---
+
   } catch (error) {
     console.error('Error al generar la imagen:', error);
     // Aquí podrías mostrar un error al usuario
