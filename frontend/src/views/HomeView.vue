@@ -1,7 +1,5 @@
 <script setup>
-// Importamos 'ref' de Vue para la reactividad
 import { ref, onMounted, watch, computed } from 'vue';
-// Importamos Axios para las peticiones HTTP
 import axios from 'axios';
 import html2canvas from 'html2canvas';
 import { useGtag } from 'vue-gtag-next'
@@ -10,15 +8,12 @@ import { useGtag } from 'vue-gtag-next'
 const nombre = ref('');
 const gustos = ref('');
 const profesion = ref('');
-
-// --- NUEVOS Refs ---
 const imagenFondoResultadoActual = ref(1);
 const email = ref('');
-const tono = ref('humorístico'); // Valor por defecto
+const tono = ref('humorístico');
 const puesto = ref('');
-const empresa = ref('Bayer');
 const galeria = ref([]);
-const galeriaItemRefs = ref({}); // Usaremos un objeto para guardar las refs por ID
+const galeriaItemRefs = ref({});
 const setGaleriaItemRef = (el, itemId) => {
   if (el) {
     // Si el elemento existe (se monta o actualiza), lo guardamos/actualizamos
@@ -40,16 +35,43 @@ const estaCargando = ref(false);
 const error = ref(null);
 const resultadoActualDivRef = ref(null);
 const { event } = useGtag()
+const downloadError = ref(null);
+const emailDomainError = ref(null);
+
+// --- Leer dominios permitidos del frontend .env ---
+const allowedFrontendDomains = (import.meta.env.VITE_ALLOWED_DOMAINS || '')
+  .split(',')
+  .map(domain => domain.trim().toLowerCase())
+  .filter(domain => domain);
 
 // 3. URL del Backend
 const API_URL = `${import.meta.env.VITE_API_URL}/generar-calavera`;
 const GALERIA_URL = `${import.meta.env.VITE_GALERIA_URL}/calaveras`;
 
-
-
+// --- Función para validar el dominio del email ---
+const validateEmailDomain = () => {
+  emailDomainError.value = null;
+  if (email.value && isValidEmail(email.value)) {
+    const domain = getDomainFromEmail(email.value);
+    if (!allowedFrontendDomains.includes(domain)) {
+      emailDomainError.value = 'Lo sentimos, el correo que ingresaste no pertenece a la empresa, intenta de nuevo con un correo válido.';
+    }
+  } else if (email.value) {
+    // Si hay algo escrito pero no es un email válido aún
+    emailDomainError.value = 'Formato de correo inválido.';
+  }
+};
 
 // 4. Función que se llama al enviar el formulario
 const handleSubmit = async () => {
+
+  // Re-validar formato y dominio antes de enviar
+  validateEmailDomain();
+  if (!email.value || !isValidEmail(email.value) || emailDomainError.value) {
+    error.value = emailDomainError.value || 'Por favor, ingresa un correo electrónico válido y autorizado.';
+    return; // Detener si hay error de email o dominio
+  }
+
   // Reiniciar estado
   estaCargando.value = true;
   calaveraGenerada.value = '';
@@ -64,6 +86,7 @@ const handleSubmit = async () => {
       estaCargando.value = false;
       return; // Detener si el email no es válido
     }
+    const domainToSend = getDomainFromEmail(email.value);
 
     // 5. Llamada de Axios al backend
     const response = await axios.post(API_URL, {
@@ -73,7 +96,7 @@ const handleSubmit = async () => {
       email: email.value,
       tono: tono.value,
       puesto: puesto.value,
-      empresa: empresa.value,
+      empresa: domainToSend,
     });
 
     // 6. Actualizar el ref con la respuesta
@@ -85,10 +108,10 @@ const handleSubmit = async () => {
     // --- Enviar evento a GA4 ---
     event('generate_calaverita', {
       'event_category': 'engagement',
-      'event_label': `Tono: ${tono.value}`, // Puedes añadir más detalles
-      'value': 1 // Opcional: un valor numérico
+      'event_label': `Tono: ${tono.value}`,
+      'company_domain': domainToSend,
+      'value': 1
     })
-    // --- FIN Evento ---
 
 
     // ---- Cargar galería personal DESPUÉS de generar ----
@@ -161,13 +184,13 @@ const generarYDescargarCanvas = async (elementoDOM, nombreArchivo) => {
     // --- Enviar evento a GA4 ---
     event('download_image', {
       'event_category': 'engagement',
-      'event_label': nombreArchivo, // El nombre del archivo puede ser útil
+      'event_label': nombreArchivo,
     });
-    // --- FIN Evento ---
 
   } catch (error) {
     console.error('Error al generar la imagen:', error);
-    // Aquí podrías mostrar un error al usuario
+    downloadError.value = 'No se pudo generar la imagen para descargar. Intenta de nuevo.';
+    setTimeout(() => { downloadError.value = null; }, 5000);
   }
 };
 
@@ -180,11 +203,24 @@ const galeriaFiltrada = computed(() => {
   return galeria.value.filter(item => item.id !== lastGeneratedId.value);
 });
 
+// Función para extraer el dominio principal de un email
+const getDomainFromEmail = (emailString) => {
+  if (!emailString || !emailString.includes('@')) {
+    return ''; // Retorna vacío si no es un email válido
+  }
+  const domainPart = emailString.split('@')[1];
+  // Esta versión simple solo toma el dominio completo después del @
+  return domainPart || '';
+};
+
 // ---- Observar cambios en el email para cargar la galería personal ----
 watch(email, (newEmail) => {
+  // Validar dominio al cambiar el email
+  validateEmailDomain();
+
   showCurrentResult.value = false;
   lastGeneratedId.value = null;
-  if (newEmail && isValidEmail(newEmail)) {
+  if (newEmail && isValidEmail(newEmail) && !emailDomainError.value) {
     cargarGaleria(newEmail);
   } else {
     galeria.value = [];
@@ -199,15 +235,20 @@ function isValidEmail(email) {
 </script>
 
 <template>
-  <div class="min-h-screen bg-gray-900 text-white p-4 md:p-10">
-    <div class="max-w-2xl mx-auto">
+  <div class="min-h-screen bg-gray-900 text-white flex flex-col">
+    <div class="max-w-2xl mx-auto w-full flex-grow px-4 md:px-10 py-10">
       <h1 class="text-4xl font-bold text-center mb-8 text-orange-400">Generador de Calaveritas Literarias 💀</h1>
 
       <form @submit.prevent="handleSubmit" class="space-y-4">
         <div>
-          <label for="email" class="block text-sm font-medium text-gray-300">Escribe tu correo electrónico:</label>
-          <input v-model="email" type="email" id="email" placeholder=""
-            class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white" required>
+          <label for="email" class="block text-sm font-medium text-gray-300">Escribe tu correo electrónico
+            corporativo:</label>
+          <input v-model="email" type="email" id="email" @blur="validateEmailDomain"
+            class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white"
+            :class="{ 'border-red-500': emailDomainError }" required>
+          <p v-if="emailDomainError" class="mt-1 text-sm text-red-400">
+            {{ emailDomainError }}
+          </p>
         </div>
 
         <div>
@@ -218,21 +259,20 @@ function isValidEmail(email) {
 
         <div>
           <label for="profesion" class="block text-sm font-medium text-gray-300">¿Cuál es tu profesión?</label>
-          <input v-model="profesion" type="text" id="profesion" placeholder=""
+          <input v-model="profesion" type="text" id="profesion"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
         <div>
-          <label for="puesto" class="block text-sm font-medium text-gray-300">¿Qué puesto de trabajo tienes
-            Bayer?</label>
-          <input v-model="puesto" type="text" id="puesto" placeholder=""
+          <label for="puesto" class="block text-sm font-medium text-gray-300">¿Qué puesto de trabajo tienes?</label>
+          <input v-model="puesto" type="text" id="puesto"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white">
         </div>
 
         <div>
           <label for="gustos" class="block text-sm font-medium text-gray-300">¿Qué actividades disfrutas
             realizar?</label>
-          <textarea v-model="gustos" id="gustos" rows="2" placeholder=""
+          <textarea v-model="gustos" id="gustos" rows="2"
             class="mt-1 block w-full bg-gray-700 border-gray-600 rounded-md shadow-sm p-2 text-white"></textarea>
         </div>
 
@@ -266,6 +306,7 @@ function isValidEmail(email) {
       <div v-if="error" class="mt-6 p-4 bg-red-800 text-red-100 rounded-md">
         {{ error }}
       </div>
+      <div v-if="downloadError" class="mt-6 p-4 bg-red-800 text-red-100 rounded-md">{{ downloadError }}</div>
 
       <div v-if="calaveraGenerada && showCurrentResult" class="mt-6">
         <div class="block sm:hidden my-6 p-4 bg-green-100 text-green-900  rounded-md" role="alert">
@@ -273,7 +314,7 @@ function isValidEmail(email) {
         </div>
         <div ref="resultadoActualDivRef"
           class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
-          <img :src="`/fondo${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
+          <img :src="`/fondo_${imagenFondoResultadoActual}.png`" alt="Fondo Calaverita"
             class="absolute inset-0 w-full h-full object-cover">
           <div class="absolute inset-0"></div>
           <div
@@ -299,7 +340,7 @@ function isValidEmail(email) {
           <div class="mb-8">
             <div :ref="(el) => setGaleriaItemRef(el, calavera.id)"
               class="relative w-full max-w-xl mx-auto aspect-[2/3] rounded-lg shadow-lg overflow-hidden">
-              <img :src="`/fondo${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
+              <img :src="`/fondo_${calavera.imagen_fondo_id}.png`" alt="Fondo Calaverita Galeria"
                 class="absolute inset-0 w-full h-full object-cover">
               <div class="absolute inset-0"></div>
               <div
@@ -319,5 +360,10 @@ function isValidEmail(email) {
         </template>
       </div>
     </div>
+    <footer class="mt-auto py-4 text-center text-gray-500 text-sm">
+      Generador de Calaveritas Literarias desarrollado por
+      <a href="https://tolkogroup.com/" target="_blank" rel="noopener noreferrer" class="underline hover:text-gray-400">
+        Tolko Group </a>
+    </footer>
   </div>
 </template>

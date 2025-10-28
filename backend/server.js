@@ -4,16 +4,22 @@ const express = require('express');
 const cors = require('cors');
 const mysql = require('mysql2/promise'); // Usamos la versión con Promesas
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+// --- Leer dominios desde .env ---
+const allowedDomains = (process.env.ALLOWED_DOMAINS || '')
+  .split(',')
+  .map((domain) => domain.trim().toLowerCase())
+  .filter((domain) => domain); // Lee, separa por coma, limpia y filtra vacíos
+
+console.log('Dominios permitidos:', allowedDomains); // Para verificar al iniciar
 
 const app = express();
 
 // 1. Define los orígenes permitidos (la "lista de invitados")
 const whitelist = [
-  process.env.FRONTEND_URL,
   'http://localhost:5173',
   'https://tolkogroup.com',
   'https://www.tolkogroup.com',
-  'https://calaverita-bayer.tolkogroup.com',
+  process.env.FRONTEND_URL,
 ];
 const corsOptions = {
   origin: function (origin, callback) {
@@ -59,6 +65,48 @@ function isValidEmail(email) {
   return emailRegex.test(email);
 }
 
+// --- FUNCIÓN HELPER PARA EXTRAER DOMINIO ---
+function getDomainFromEmail(emailString) {
+  if (!emailString || !emailString.includes('@')) {
+    return null;
+  }
+  return emailString.split('@')[1]?.toLowerCase() || null; // Devuelve el dominio en minúsculas
+}
+
+// --- NUEVO: Mapeo de Dominios a IDs de Fondos ---
+// Asegúrate de que los dominios aquí coincidan EXACTAMENTE (en minúsculas)
+// con los definidos en 'allowedDomains' y los identificadores con tus nombres de archivo.
+const domainBackgrounds = {
+  'proxper.com.mx': ['proxper_1', 'proxper_2', 'proxper_3'],
+  'tolkogroup.com': ['tolkogroup_1', 'tolkogroup_2', 'tolkogroup_3'],
+  'naturgy.com': ['naturgy_1', 'naturgy_2', 'naturgy_3'],
+  // 'amib.com.mx': ['amib_1', 'amib_2', 'amib_3'],
+  // 'mmm.com': ['mmm_1', 'mmm_2', 'mmm_3'],
+  // 'amsofipo.mx': ['amsofipo_1', 'amsofipo_2', 'amsofipo_3'],
+  'biopappel.com': ['biopappel_1', 'biopappel_2', 'biopappel_3'],
+  'crediclub.com': ['crediclub_1', 'crediclub_2', 'crediclub_3'],
+  'cydsa.com': ['cydsa_1', 'cydsa_2', 'cydsa_3'],
+  'nike.com': ['nike_1', 'nike_2', 'nike_3'],
+  'pluxeegroup.com': ['pluxeegroup_1', 'pluxeegroup_2', 'pluxeegroup_3'],
+  'novonordisk.com': ['novonordisk_1', 'novonordisk_2', 'novonordisk_3'],
+};
+// console.log('🖼️ Mapeo de fondos por dominio:', domainBackgrounds);
+
+// --- FUNCIÓN HELPER PARA OBTENER FONDO ALEATORIO POR DOMINIO ---
+function getRandomBackgroundIdForDomain(domain) {
+  const backgrounds = domainBackgrounds[domain];
+  if (!backgrounds || backgrounds.length === 0) {
+    console.warn(`⚠️ No se encontraron fondos definidos para el dominio: ${domain}. Usando fallback.`);
+    // Define tus fondos de fallback aquí
+    const fallbackBackgrounds = ['default_1', 'default_2', 'default_3']; // Asegúrate que fondo_default_X.png existan
+    const randomIndex = Math.floor(Math.random() * fallbackBackgrounds.length);
+    return fallbackBackgrounds[randomIndex]; // Devuelve uno de los defaults aleatoriamente
+  }
+  // Selecciona un ID aleatorio de la lista específica del dominio
+  const randomIndex = Math.floor(Math.random() * backgrounds.length);
+  return backgrounds[randomIndex];
+}
+
 // 3. Crear el Endpoint
 app.post('/api/generar-calavera', async (req, res) => {
   try {
@@ -75,6 +123,18 @@ app.post('/api/generar-calavera', async (req, res) => {
     if (!tono) {
       return res.status(400).json({ error: 'Debes seleccionar un tono para la calaverita.' });
     }
+
+    // --- NUEVO: Validación de Dominio Permitido ---
+    const userDomain = getDomainFromEmail(email); // Extrae el dominio
+    if (!userDomain || !allowedDomains.includes(userDomain)) {
+      console.log(`Intento bloqueado: Dominio ${userDomain} no permitido.`); // Log en servidor
+      // 403 Forbidden: El usuario no tiene permiso
+      return res.status(403).json({
+        error:
+          'Lo sentimos, el correo que ingresaste no pertenece a la empresa, intenta de nuevo con un correo válido.',
+      });
+    }
+    // --- FIN Validación de Dominio ---
 
     // ---- NUEVO: Lógica de Límite por Email (usando tabla 'usuarios') ----
     let connection; // Para manejar la transacción
@@ -125,7 +185,15 @@ app.post('/api/generar-calavera', async (req, res) => {
       const textoCalavera = result.response.text();
 
       // ---- Seleccionar ID de fondo aleatorio ----
-      const imagenFondoId = Math.floor(Math.random() * 3) + 1;
+      // ---- MODIFICADO: Seleccionar ID de fondo BASADO EN DOMINIO ----
+      const imagenFondoId = getRandomBackgroundIdForDomain(userDomain);
+      if (!imagenFondoId) {
+        // Manejar el caso donde no se pudo asignar un fondo (si no usaste fallback)
+        console.error(`Error crítico: No se pudo determinar un fondo para el dominio ${userDomain}`);
+        // Podrías asignar uno por defecto aquí o lanzar un error
+        // Por ahora, asumimos que getRandomBackgroundIdForDomain devuelve algo.
+      }
+      // ---- FIN MODIFICACIÓN ----
 
       // Guardar en MySQL (tabla 'calaveras')
       const [dbResult] = await connection.execute(
@@ -192,6 +260,10 @@ app.get('/api/calaveras', async (req, res) => {
     console.error('Error en GET /api/calaveras:', error);
     res.status(500).json({ error: 'Error al obtener las calaveras personales.' });
   }
+});
+
+app.get('/', (req, res) => {
+  res.send('API calaveritas funcionando!');
 });
 
 // Iniciar servidor
