@@ -33,3 +33,4 @@ coverage
 *.tsbuildinfo
 
 public/calaverita*
+*-copy.*
